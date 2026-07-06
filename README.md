@@ -25,6 +25,12 @@
 - 密钥只存浏览器 `localStorage`，不会进入代码或服务器。
 - 数据隔离：每个访客的浏览器各自独立，互不可见。
 
+## 在线试用
+
+无需安装，直接打开即可使用（内容只存在你自己的浏览器里）：
+
+**https://264ea8cb205240aaaf4a9dd27436bb96.app.codebuddy.work**
+
 ## 部署
 
 把本目录作为静态站托管即可（CloudStudio / EdgeOne Pages / GitHub Pages / 任意静态托管）。
