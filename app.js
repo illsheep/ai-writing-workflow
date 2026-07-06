@@ -7,6 +7,7 @@ const OPERATIONS = {
   shorten: { label: '缩写', prompt: '请缩写下面文本，保留核心信息与要点，删除冗余，尽量简短：' },
   summary: { label: '概括', prompt: '请用一两段话概括下面文本的主旨与要点：' },
   review:  { label: '点评', prompt: '请从内容、结构、表达等方面点评下面文本，指出优点与可改进之处：' },
+  cont:    { label: '续写', prompt: '请接着下面文本继续写，保持文风、人物与主题一致，自然衔接，不要重复已有内容：' },
 };
 
 const STORE_KEY = 'aiwf_state_v1';
