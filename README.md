@@ -31,6 +31,10 @@
 
 **https://264ea8cb205240aaaf4a9dd27436bb96.app.codebuddy.work**
 
+## 作者说
+
+目前只是用 AI 搭了个基本框架，其他功能还在规划中。有想法的朋友可以在仓库的 **Discussions（讨论区）** 提出来哈，一起把它做得更好～
+
 ## 部署
 
 把本目录作为静态站托管即可（CloudStudio / EdgeOne Pages / GitHub Pages / 任意静态托管）。
