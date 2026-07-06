@@ -1,0 +1,5 @@
+# 项目私有 / 本地数据
+.workbuddy/
+.DS_Store
+Thumbs.db
+*.log
