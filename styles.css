@@ -179,3 +179,43 @@ label.lbl { font-size: 12px; color: #6b7480; }
 .modal-box label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4a5260; }
 .tip { font-size: 12px; color: #8a93a0; margin: 0; line-height: 1.5; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* 运行历史 */
+.history-panel {
+  border: 1px solid #e0e6ef;
+  border-radius: 8px;
+  background: #fafbfe;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow: auto;
+}
+.history-panel.hidden { display: none; }
+.hist-empty { font-size: 12px; color: #aeb6c2; text-align: center; padding: 8px 0; }
+.history-item {
+  border: 1px solid #e6eaf1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hist-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+.hist-time { color: #8a93a0; }
+.hist-op {
+  background: #eaf1ff; color: #2f6bff;
+  border-radius: 4px; padding: 1px 6px; font-weight: 600;
+}
+.hist-preview {
+  font-size: 12px; color: #4a5260;
+  white-space: pre-wrap; word-break: break-word;
+  line-height: 1.5;
+  max-height: 60px; overflow: hidden;
+}
+.hist-btns { display: flex; gap: 6px; }
+.tb.tiny { padding: 3px 8px; font-size: 12px; flex: 1; }
+.tb.danger { color: #e0533b; border-color: #f0c4ba; }
+.tb.danger:hover { background: #fdece9; }

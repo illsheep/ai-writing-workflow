@@ -109,6 +109,8 @@ function renderNode(id) {
     const btn = $('.run-btn', el);
     if (node.running) { btn.textContent = '运行中…'; btn.classList.add('running'); btn.disabled = true; }
     else { btn.textContent = '运行'; btn.classList.remove('running'); btn.disabled = false; }
+    const histBtn = $('.hist-btn', el);
+    if (histBtn) histBtn.textContent = '历史' + (node.history && node.history.length ? ' (' + node.history.length + ')' : '');
     updateUpPreview(el, node);
   }
 }
@@ -168,11 +170,15 @@ function buildNodeInner(el, node) {
     runBtn.className = 'tb primary run-btn';
     runBtn.textContent = '运行';
     runBtn.addEventListener('click', () => runNode(node.id));
+    const histBtn = document.createElement('button');
+    histBtn.className = 'tb hist-btn';
+    histBtn.textContent = '历史';
+    histBtn.addEventListener('click', () => toggleHistory(el, node));
     const copyBtn = document.createElement('button');
     copyBtn.className = 'tb';
     copyBtn.textContent = '复制结果';
     copyBtn.addEventListener('click', () => copyText(node.output || ''));
-    actions.appendChild(runBtn); actions.appendChild(copyBtn);
+    actions.appendChild(runBtn); actions.appendChild(histBtn); actions.appendChild(copyBtn);
     body.appendChild(actions);
 
     const out = document.createElement('textarea');
@@ -180,6 +186,10 @@ function buildNodeInner(el, node) {
     out.placeholder = 'AI 结果将显示在这里（可编辑，作为下游输入）…';
     out.addEventListener('input', () => { node.output = out.value; autoGrow(out); saveState(); });
     body.appendChild(out);
+
+    const histPanel = document.createElement('div');
+    histPanel.className = 'history-panel hidden';
+    body.appendChild(histPanel);
   }
   el.appendChild(body);
 
@@ -330,7 +340,7 @@ function addNode(type) {
     id, type,
     x: 120 + (state.nodes.length % 5) * 40,
     y: 120 + (state.nodes.length % 5) * 40,
-    content: '', operation: 'polish', instruction: '', output: '', running: false,
+    content: '', operation: 'polish', instruction: '', output: '', running: false, history: [],
   };
   state.nodes.push(node);
   saveState();
@@ -453,6 +463,7 @@ async function runNode(id) {
         } catch (_) { /* 忽略不完整片段 */ }
       }
     }
+    recordHistory(node, node.operation, node.instruction, srcText, node.output);
   } catch (err) {
     node.output = '【调用出错】' + err.message;
     const outEl = $('.output', nodeEls.get(id));
@@ -464,6 +475,78 @@ async function runNode(id) {
     renderNode(id);
     saveState();
   }
+}
+
+/* ---------- 运行历史 ---------- */
+function recordHistory(node, op, instruction, input, output) {
+  if (!output || !output.trim()) return;
+  if (output.startsWith('【调用出错】')) return;
+  if (!node.history) node.history = [];
+  node.history.unshift({ ts: Date.now(), op, instruction: instruction || '', input, output });
+  if (node.history.length > 12) node.history.length = 12;
+}
+
+function toggleHistory(el, node) {
+  const panel = $('.history-panel', el);
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    renderHistory(panel, node);
+    panel.classList.remove('hidden');
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function renderHistory(panel, node) {
+  panel.innerHTML = '';
+  if (!node.history || node.history.length === 0) {
+    panel.innerHTML = '<div class="hist-empty">暂无历史记录</div>';
+    return;
+  }
+  node.history.forEach((h) => {
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    item.title = '当时输入：\n' + (h.input || '');
+    const time = new Date(h.ts).toLocaleString('zh-CN', { hour12: false });
+    const opLabel = OPERATIONS[h.op] ? OPERATIONS[h.op].label : (h.op || '运行');
+    const head = document.createElement('div');
+    head.className = 'hist-head';
+    head.innerHTML = '<span class="hist-time">' + time + '</span><span class="hist-op">' + opLabel + '</span>';
+    const prev = document.createElement('div');
+    prev.className = 'hist-preview';
+    prev.textContent = h.output.length > 120 ? h.output.slice(0, 120) + '…' : h.output;
+    const btns = document.createElement('div');
+    btns.className = 'hist-btns';
+    const restore = document.createElement('button');
+    restore.className = 'tb tiny';
+    restore.textContent = '恢复此版本';
+    restore.addEventListener('click', () => restoreHistory(node, h));
+    const copyh = document.createElement('button');
+    copyh.className = 'tb tiny';
+    copyh.textContent = '复制';
+    copyh.addEventListener('click', () => copyText(h.output));
+    btns.appendChild(restore); btns.appendChild(copyh);
+    item.appendChild(head); item.appendChild(prev); item.appendChild(btns);
+    panel.appendChild(item);
+  });
+  const clear = document.createElement('button');
+  clear.className = 'tb tiny danger';
+  clear.textContent = '清空历史';
+  clear.addEventListener('click', () => {
+    if (confirm('清空该节点全部历史记录？')) { node.history = []; renderHistory(panel, node); saveState(); }
+  });
+  panel.appendChild(clear);
+}
+
+function restoreHistory(node, h) {
+  node.output = h.output;
+  saveState();
+  renderNode(node.id);
+  for (const e of outgoingOf(node.id)) {
+    const el = nodeEls.get(e.to);
+    if (el) updateUpPreview(el, getNode(e.to));
+  }
+  toast('已恢复历史版本');
 }
 
 async function runDownstream(id) {
