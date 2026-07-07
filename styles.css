@@ -102,6 +102,13 @@ body {
 }
 .node.ai .node-header { background: #f3f7ff; }
 .node-title { font-size: 13px; font-weight: 600; }
+.node-header-actions { display: flex; gap: 4px; align-items: center; }
+.node-copy {
+  border: 1px solid #d8dde5; background: #fff; cursor: pointer;
+  color: #4a5568; font-size: 11px; line-height: 1; padding: 3px 6px; border-radius: 6px;
+}
+.node-copy:hover { background: #f0f3f8; color: #2f6bff; border-color: #b9ccff; }
+.node-copy.tree { color: #2f6bff; border-color: #c9d8ff; }
 .node-del {
   border: none; background: transparent; cursor: pointer;
   color: #b0b7c2; font-size: 15px; line-height: 1; padding: 2px 4px;

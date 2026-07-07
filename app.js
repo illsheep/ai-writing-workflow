@@ -119,13 +119,32 @@ function renderNode(id) {
 function buildNodeInner(el, node) {
   const header = document.createElement('div');
   header.className = 'node-header';
-  header.innerHTML = `<span class="node-title">${node.type === 'input' ? '输入框' : 'AI 操作框'}</span>`;
+  const title = document.createElement('span');
+  title.className = 'node-title';
+  title.textContent = node.type === 'input' ? '输入框' : 'AI 操作框';
+  header.appendChild(title);
+
+  const hActions = document.createElement('div');
+  hActions.className = 'node-header-actions';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'node-copy';
+  copyBtn.textContent = '复制';
+  copyBtn.title = '复制此节点（偏移放置）';
+  copyBtn.addEventListener('click', (e) => { e.stopPropagation(); copyNode(node.id, false); });
+  hActions.appendChild(copyBtn);
+  const copyTreeBtn = document.createElement('button');
+  copyTreeBtn.className = 'node-copy tree';
+  copyTreeBtn.textContent = '复制整链';
+  copyTreeBtn.title = '复制此节点及其所有下游（整条链）';
+  copyTreeBtn.addEventListener('click', (e) => { e.stopPropagation(); copyNode(node.id, true); });
+  hActions.appendChild(copyTreeBtn);
   const del = document.createElement('button');
   del.className = 'node-del';
   del.textContent = '✕';
   del.title = '删除';
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteNode(node.id); });
-  header.appendChild(del);
+  hActions.appendChild(del);
+  header.appendChild(hActions);
   el.appendChild(header);
 
   const body = document.createElement('div');
@@ -361,9 +380,69 @@ function deleteEdge(id) {
   renderAll();
 }
 
+/* ---------- 复制节点 / 整链 ---------- */
+function collectSubtree(rootId) {
+  const ids = new Set();
+  const stack = [rootId];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (ids.has(cur)) continue;
+    ids.add(cur);
+    for (const e of outgoingOf(cur)) stack.push(e.to);
+  }
+  return ids;
+}
+
+function cloneNodeFields(src, newId, dx, dy) {
+  return {
+    id: newId,
+    type: src.type,
+    x: src.x + dx,
+    y: src.y + dy,
+    content: src.content || '',
+    operation: src.operation || 'polish',
+    instruction: src.instruction || '',
+    output: src.output || '',
+    running: false,
+    history: Array.isArray(src.history) ? src.history.map(h => ({ ...h })) : [],
+  };
+}
+
+function copyNode(id, subtree) {
+  const root = getNode(id);
+  if (!root) return;
+  const dx = 48, dy = 48;
+  if (subtree) {
+    const ids = collectSubtree(id);
+    const map = {};
+    const newNodes = [];
+    for (const oid of ids) {
+      const n = getNode(oid);
+      const nid = uid(n.type);
+      map[oid] = nid;
+      newNodes.push(cloneNodeFields(n, nid, dx, dy));
+    }
+    for (const e of state.edges) {
+      if (map[e.from] && map[e.to]) {
+        state.edges.push({ id: uid('e'), from: map[e.from], to: map[e.to] });
+      }
+    }
+    state.nodes.push(...newNodes);
+    saveState();
+    renderAll();
+    toast('已复制整链（' + ids.size + ' 个节点）');
+  } else {
+    const nid = uid(root.type);
+    state.nodes.push(cloneNodeFields(root, nid, dx, dy));
+    saveState();
+    renderAll();
+    toast('已复制节点');
+  }
+}
+
 /* ---------- 拖拽移动 ---------- */
 function startDrag(e, id) {
-  if (e.target.closest('.node-del')) return;
+  if (e.target.closest('.node-del') || e.target.closest('.node-copy')) return;
   e.preventDefault();
   const node = getNode(id);
   const cr = canvas.getBoundingClientRect();
