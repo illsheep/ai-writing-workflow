@@ -192,6 +192,8 @@ label.lbl { font-size: 12px; color: #6b7480; }
 .doc-row .tb { height: 32px; align-self: flex-end; }
 .doc-row input[type="number"] { width: 110px; }
 .doc-row input:disabled { background: #f1f2f4; color: #aab0b8; }
+.doc-chain-opts { border-top: 1px dashed #e3e6ea; margin-top: 10px; padding-top: 10px; }
+.doc-chain-opts.hidden { display: none; }
 
 /* 运行历史 */
 .history-panel {

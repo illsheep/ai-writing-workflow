@@ -702,24 +702,55 @@ function importDocToNodes() {
   const text = $('#doc-text').value;
   const mode = $('#doc-mode').value;
   const size = $('#doc-size').value;
+  const importMode = $('#doc-import-mode').value;
   const segs = splitDoc(text, mode, size);
   if (segs.length === 0) { toast('没有可拆分的内容'); return; }
-  const startX = 60, startY = 80, colW = 290, rowH = 300, cols = 3;
-  segs.forEach((s, k) => {
-    const col = k % cols, row = Math.floor(k / cols);
-    const id = uid('input');
-    state.nodes.push({
-      id, type: 'input',
-      x: startX + col * colW,
-      y: startY + row * rowH,
-      content: s,
-      operation: 'polish', instruction: '', output: '', running: false, history: [],
+  const startX = 60, startY = 80, colW = 300, cols = 3;
+  if (importMode === 'chain') {
+    const op = $('#doc-op').value || 'polish';
+    const instr = $('#doc-op-instr').value.trim();
+    const rowH = 600;
+    segs.forEach((s, k) => {
+      const col = k % cols, row = Math.floor(k / cols);
+      const ix = startX + col * colW;
+      const iy = startY + row * rowH;
+      const inId = uid('input');
+      state.nodes.push({
+        id: inId, type: 'input',
+        x: ix, y: iy,
+        content: s,
+        operation: 'polish', instruction: '', output: '', running: false, history: [],
+      });
+      const aiId = uid('ai');
+      state.nodes.push({
+        id: aiId, type: 'ai',
+        x: ix, y: iy + 290,
+        content: '', operation: op, instruction: instr, output: '', running: false, history: [],
+      });
+      state.edges.push({ id: uid('e'), from: inId, to: aiId });
     });
-  });
-  closeImportDoc();
-  saveState();
-  renderAll();
-  toast('已生成 ' + segs.length + ' 个输入框');
+    closeImportDoc();
+    saveState();
+    renderAll();
+    toast('已生成 ' + segs.length + ' 条 输入→AI 链，点「向下游全部运行」批量处理');
+  } else {
+    const rowH = 300;
+    segs.forEach((s, k) => {
+      const col = k % cols, row = Math.floor(k / cols);
+      const id = uid('input');
+      state.nodes.push({
+        id, type: 'input',
+        x: startX + col * colW,
+        y: startY + row * rowH,
+        content: s,
+        operation: 'polish', instruction: '', output: '', running: false, history: [],
+      });
+    });
+    closeImportDoc();
+    saveState();
+    renderAll();
+    toast('已生成 ' + segs.length + ' 个输入框');
+  }
 }
 function openImportDoc() { $('#import-doc-modal').classList.remove('hidden'); }
 function closeImportDoc() { $('#import-doc-modal').classList.add('hidden'); }
@@ -785,6 +816,19 @@ $('#import-doc-modal').addEventListener('click', (e) => {
 $('#doc-mode').addEventListener('change', (e) => {
   $('#doc-size').disabled = (e.target.value !== 'size');
 });
+$('#doc-import-mode').addEventListener('change', (e) => {
+  $('#doc-chain-opts').classList.toggle('hidden', e.target.value !== 'chain');
+});
+function fillDocOp() {
+  const sel = $('#doc-op');
+  if (!sel) return;
+  for (const [k, v] of Object.entries(OPERATIONS)) {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = v.label;
+    sel.appendChild(o);
+  }
+}
+fillDocOp();
 $('#doc-pick').addEventListener('click', () => $('#doc-file').click());
 $('#doc-file').addEventListener('change', (e) => {
   const f = e.target.files[0];

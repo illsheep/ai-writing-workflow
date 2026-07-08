@@ -31,7 +31,7 @@
   <div id="import-doc-modal" class="modal hidden">
     <div class="modal-box">
       <h3>导入文档</h3>
-      <p class="tip">粘贴或选择文本文件，将按段落拆分为多个可编辑的输入框。每个输入框是一段，可分别连接 AI 框处理。</p>
+      <p class="tip">粘贴或选择文本文件，将按段落拆分为多段。可选「逐段批处理」：每段自动配一个 AI 框并连好线，一键跑完全篇。</p>
       <label>文本
         <textarea id="doc-text" class="doc-text" placeholder="在此粘贴你的文章 / 文档内容…"></textarea>
       </label>
@@ -43,15 +43,32 @@
             <option value="whole">整段（不拆分）</option>
           </select>
         </label>
+        <label>导入模式
+          <select id="doc-import-mode">
+            <option value="boxes">仅生成输入框</option>
+            <option value="chain">逐段批处理（每段配一个 AI 框）</option>
+          </select>
+        </label>
         <label>每段约 N 字
           <input id="doc-size" type="number" value="200" min="20" step="10" disabled />
         </label>
         <button id="doc-pick" class="tb">选择文件</button>
         <input type="file" id="doc-file" accept=".txt,.md,.text,text/plain" hidden />
       </div>
+      <div id="doc-chain-opts" class="doc-chain-opts hidden">
+        <div class="doc-row">
+          <label>AI 操作
+            <select id="doc-op"></select>
+          </label>
+          <label>附加指令（可选）
+            <input id="doc-op-instr" type="text" placeholder="例如：网文爽文风 / 学术严谨风" />
+          </label>
+        </div>
+        <p class="tip">批处理下，每段会生成一个「输入框 → AI 框」微型链。生成后点工具栏「向下游全部运行」即可逐段处理整篇。</p>
+      </div>
       <div class="modal-actions">
         <button id="doc-cancel" class="tb">取消</button>
-        <button id="doc-ok" class="tb primary">生成输入框</button>
+        <button id="doc-ok" class="tb primary">生成</button>
       </div>
     </div>
   </div>
