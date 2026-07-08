@@ -42,15 +42,21 @@ body {
 #canvas {
   position: relative;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   background:
     linear-gradient(#eceff3 1px, transparent 1px) 0 0 / 24px 24px,
     linear-gradient(90deg, #eceff3 1px, transparent 1px) 0 0 / 24px 24px;
 }
+#viewport {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+}
 #edge-layer {
   position: absolute;
   top: 0; left: 0;
-  width: 4000px; height: 4000px;
+  width: 24000px; height: 24000px;
+  overflow: visible;
   pointer-events: none;
 }
 #edge-layer path.edge {
@@ -194,6 +200,8 @@ label.lbl { font-size: 12px; color: #6b7480; }
 .doc-row input:disabled { background: #f1f2f4; color: #aab0b8; }
 .doc-chain-opts { border-top: 1px dashed #e3e6ea; margin-top: 10px; padding-top: 10px; }
 .doc-chain-opts.hidden { display: none; }
+.doc-clear { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4a5260; margin-top: 8px; }
+.doc-clear input { width: auto; }
 
 /* 运行历史 */
 .history-panel {

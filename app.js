@@ -18,6 +18,13 @@ const nodeEls = new Map();   // id -> DOM 元素
 let seq = 1;
 const uid = (p) => p + '_' + (Date.now().toString(36)) + '_' + (seq++);
 
+/* 视图缩放（适配视图 / 1:1） */
+const view = { scale: 1, tx: 0, ty: 0 };
+function applyView() {
+  const vp = $('#viewport');
+  if (vp) vp.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`;
+}
+
 /* ---------- 工具 ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
 const canvas = $('#canvas');
@@ -264,13 +271,37 @@ function onContentChanged(id) {
 }
 
 /* ---------- 连线绘制 ---------- */
+/* 端口中心（内容坐标，不依赖 DOM 缩放后位置）
+   与 styles.css 中 .node 宽(280px) 及 .port top(16px)+半径(7px)=23 保持一致 */
+const NODE_W = 280, PORT_DY = 23;
 function portCenter(nodeId, which) {
-  const el = nodeEls.get(nodeId);
-  const port = $('.port-' + which, el);
-  const r = port.getBoundingClientRect();
-  const cr = canvas.getBoundingClientRect();
-  return { x: r.left + r.width / 2 - cr.left, y: r.top + r.height / 2 - cr.top };
+  const node = getNode(nodeId);
+  if (!node) return { x: 0, y: 0 };
+  if (which === 'out') return { x: node.x + NODE_W - 1, y: node.y + PORT_DY };
+  return { x: node.x - 1, y: node.y + PORT_DY };
 }
+function fitView() {
+  if (state.nodes.length === 0) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of state.nodes) {
+    const el = nodeEls.get(n.id);
+    const h = (el && el.offsetHeight) ? el.offsetHeight : 320;
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
+    if (n.y + h > maxY) maxY = n.y + h;
+  }
+  const pad = 60;
+  const bw = (maxX - minX) + pad * 2;
+  const bh = (maxY - minY) + pad * 2;
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  const scale = Math.min(cw / bw, ch / bh, 1);
+  view.scale = scale;
+  view.tx = (cw - bw * scale) / 2 - (minX - pad) * scale;
+  view.ty = (ch - bh * scale) / 2 - (minY - pad) * scale;
+  applyView();
+}
+function resetView() { view.scale = 1; view.tx = 0; view.ty = 0; applyView(); }
 
 function edgePath(s, t) {
   const dx = Math.max(40, Math.abs(t.x - s.x) / 2);
@@ -312,7 +343,10 @@ function startConnect(e, fromId) {
 function onConnectMove(e) {
   if (!tempConnect) return;
   const cr = canvas.getBoundingClientRect();
-  tempConnect.cur = { x: e.clientX - cr.left, y: e.clientY - cr.top };
+  tempConnect.cur = {
+    x: (e.clientX - cr.left - view.tx) / view.scale,
+    y: (e.clientY - cr.top - view.ty) / view.scale,
+  };
   drawEdges();
 }
 function onConnectUp(e) {
@@ -449,8 +483,8 @@ function startDrag(e, id) {
   const startX = e.clientX, startY = e.clientY;
   const origX = node.x, origY = node.y;
   function move(ev) {
-    node.x = Math.max(0, origX + (ev.clientX - startX));
-    node.y = Math.max(0, origY + (ev.clientY - startY));
+    node.x = Math.max(0, origX + (ev.clientX - startX) / view.scale);
+    node.y = Math.max(0, origY + (ev.clientY - startY) / view.scale);
     const el = nodeEls.get(id);
     el.style.left = node.x + 'px';
     el.style.top = node.y + 'px';
@@ -705,6 +739,7 @@ function importDocToNodes() {
   const importMode = $('#doc-import-mode').value;
   const segs = splitDoc(text, mode, size);
   if (segs.length === 0) { toast('没有可拆分的内容'); return; }
+  if ($('#doc-clear').checked) { state.nodes = []; state.edges = []; }
   const startX = 60, startY = 80, colW = 300, cols = 3;
   if (importMode === 'chain') {
     const op = $('#doc-op').value || 'polish';
@@ -732,6 +767,7 @@ function importDocToNodes() {
     closeImportDoc();
     saveState();
     renderAll();
+    if (state.nodes.length > 4) fitView();
     toast('已生成 ' + segs.length + ' 条 输入→AI 链，点「向下游全部运行」批量处理');
   } else {
     const rowH = 300;
@@ -749,6 +785,7 @@ function importDocToNodes() {
     closeImportDoc();
     saveState();
     renderAll();
+    if (state.nodes.length > 4) fitView();
     toast('已生成 ' + segs.length + ' 个输入框');
   }
 }
@@ -829,6 +866,8 @@ function fillDocOp() {
   }
 }
 fillDocOp();
+$('#btn-fit').addEventListener('click', fitView);
+$('#btn-1x').addEventListener('click', resetView);
 $('#doc-pick').addEventListener('click', () => $('#doc-file').click());
 $('#doc-file').addEventListener('change', (e) => {
   const f = e.target.files[0];

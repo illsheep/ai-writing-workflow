@@ -17,14 +17,18 @@
     <button id="btn-import" class="tb">导入 JSON</button>
     <input type="file" id="file-import" accept="application/json" hidden />
     <button id="btn-import-doc" class="tb">导入文档</button>
+    <button id="btn-fit" class="tb">适配视图</button>
+    <button id="btn-1x" class="tb">1:1</button>
     <button id="btn-settings" class="tb">API 设置</button>
     <span id="save-status" class="save-status">已保存</span>
   </header>
 
   <main id="canvas">
-    <svg id="edge-layer"></svg>
-    <div id="nodes-layer"></div>
-    <div id="hint" class="hint">从节点右侧 <b>●</b> 端口拖到另一节点左侧 <b>●</b> 端口即可连线。输入框不能接收连线；AI 框可接收多个上游（按顺序拼接），也可向多个下游输出；连线不能成环。</div>
+    <div id="viewport">
+      <svg id="edge-layer"></svg>
+      <div id="nodes-layer"></div>
+    </div>
+    <div id="hint" class="hint">从节点右侧 <b>●</b> 端口拖到另一节点左侧 <b>●</b> 端口即可连线。输入框不能接收连线；AI 框可接收多个上游（按顺序拼接），也可向多个下游输出；连线不能成环。节点多时点「适配视图」可一键缩放看全。</div>
   </main>
 
   <!-- 导入文档弹窗 -->
@@ -55,6 +59,7 @@
         <button id="doc-pick" class="tb">选择文件</button>
         <input type="file" id="doc-file" accept=".txt,.md,.text,text/plain" hidden />
       </div>
+      <label class="doc-clear"><input type="checkbox" id="doc-clear" /> 导入前清空画布（避免与现有内容混在一起）</label>
       <div id="doc-chain-opts" class="doc-chain-opts hidden">
         <div class="doc-row">
           <label>AI 操作
