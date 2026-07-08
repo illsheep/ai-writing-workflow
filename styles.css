@@ -43,10 +43,13 @@ body {
   position: relative;
   flex: 1;
   overflow: hidden;
+  cursor: grab;
   background:
     linear-gradient(#eceff3 1px, transparent 1px) 0 0 / 24px 24px,
     linear-gradient(90deg, #eceff3 1px, transparent 1px) 0 0 / 24px 24px;
 }
+#canvas.panning { cursor: grabbing; }
+#canvas .node { cursor: default; }
 #viewport {
   position: absolute;
   top: 0; left: 0;

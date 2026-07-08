@@ -914,6 +914,42 @@ function fillDocOp() {
 fillDocOp();
 $('#btn-fit').addEventListener('click', fitView);
 $('#btn-1x').addEventListener('click', resetView);
+
+/* 滚轮平移画布（替代滚动条，支持上下左右） */
+canvas.addEventListener('wheel', (e) => {
+  // 在文本框内滚动时让文本框自己滚，不平移画布
+  if (e.target.closest('textarea')) return;
+  e.preventDefault();
+  if (e.shiftKey) {
+    // shift + 滚轮：左右平移
+    view.tx -= e.deltaY;
+  } else {
+    view.tx -= e.deltaX;
+    view.ty -= e.deltaY;
+  }
+  applyView();
+}, { passive: false });
+
+/* 在空白处按住拖拽 = 平移整个画布 */
+canvas.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.node')) return;          // 点在节点上不平移
+  if (e.button !== 0) return;                      // 仅左键
+  const startX = e.clientX, startY = e.clientY;
+  const otx = view.tx, oty = view.ty;
+  canvas.classList.add('panning');
+  const move = (ev) => {
+    view.tx = otx + (ev.clientX - startX);
+    view.ty = oty + (ev.clientY - startY);
+    applyView();
+  };
+  const up = () => {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    canvas.classList.remove('panning');
+  };
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+});
 $('#doc-pick').addEventListener('click', () => $('#doc-file').click());
 $('#doc-file').addEventListener('change', (e) => {
   const f = e.target.files[0];
