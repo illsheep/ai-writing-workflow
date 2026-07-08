@@ -285,21 +285,30 @@ function fitView() {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const n of state.nodes) {
     const el = nodeEls.get(n.id);
-    const h = (el && el.offsetHeight) ? el.offsetHeight : 320;
+    // 用实际渲染高度，兜底估算
+    let h = (el && el.offsetHeight) || 0;
+    if (h < 60) h = n.type === 'ai' ? 420 : (estNodeHeight(n.content || '') + 80);
     if (n.x < minX) minX = n.x;
     if (n.y < minY) minY = n.y;
     if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
     if (n.y + h > maxY) maxY = n.y + h;
   }
-  const pad = 60;
+  const pad = 80;
   const bw = (maxX - minX) + pad * 2;
   const bh = (maxY - minY) + pad * 2;
   const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  if (cw === 0 || ch === 0) return; // 画布不可见时跳过
   const scale = Math.min(cw / bw, ch / bh, 1);
   view.scale = scale;
   view.tx = (cw - bw * scale) / 2 - (minX - pad) * scale;
   view.ty = (ch - bh * scale) / 2 - (minY - pad) * scale;
   applyView();
+}
+/** 根据文本长度估算节点内容区高度 */
+function estNodeHeight(txt) {
+  if (!txt) return 110;
+  const lines = Math.max(3, Math.ceil((txt.length * 1.2) / 22));
+  return Math.min(640, 80 + lines * 22);
 }
 function resetView() { view.scale = 1; view.tx = 0; view.ty = 0; applyView(); }
 
@@ -740,52 +749,89 @@ function importDocToNodes() {
   const segs = splitDoc(text, mode, size);
   if (segs.length === 0) { toast('没有可拆分的内容'); return; }
   if ($('#doc-clear').checked) { state.nodes = []; state.edges = []; }
-  const startX = 60, startY = 80, colW = 300, cols = 3;
+
+  // 根据内容长度估算节点高度（每中文字约 18px 行高，每行约 22 字）
+  const estHeight = (txt) => {
+    const lines = Math.max(3, Math.ceil((txt.length * 1.2) / 22));
+    return Math.min(640, 80 + lines * 22);
+  };
+
   if (importMode === 'chain') {
+    /* 链式：每段一对 [输入框] → [AI框] 横排，避免重叠 */
     const op = $('#doc-op').value || 'polish';
     const instr = $('#doc-op-instr').value.trim();
-    const rowH = 600;
+    const NODE_W = 280;          /* 与 CSS .node width 一致 */
+    const PAIR_GAP = 40;         /* 输入框与 AI 框的间距 */
+    const COL_GAP = 60;          /* 列间距 */
+    const ROW_GAP = 80;          /* 行间距 */
+    const PAIR_W = NODE_W * 2 + PAIR_GAP;  /* 一对的总宽度 */
+    const cols = Math.max(1, Math.floor((canvas.clientWidth || 1200) / (PAIR_W + COL_GAP)));
+    let curX = 60, curY = 80, maxRowH = 0;
+
     segs.forEach((s, k) => {
-      const col = k % cols, row = Math.floor(k / cols);
-      const ix = startX + col * colW;
-      const iy = startY + row * rowH;
+      const hIn = estHeight(s);
+      const hAi = estHeight(s) + 140;   /* AI 框比输入高（多操作区+输出区） */
+      const pairH = Math.max(hIn, hAi);
+
+      if (k > 0 && k % cols === 0) {
+        curX = 60;
+        curY += maxRowH + ROW_GAP;
+        maxRowH = 0;
+      }
+
       const inId = uid('input');
       state.nodes.push({
         id: inId, type: 'input',
-        x: ix, y: iy,
+        x: curX, y: curY,
         content: s,
         operation: 'polish', instruction: '', output: '', running: false, history: [],
       });
       const aiId = uid('ai');
       state.nodes.push({
         id: aiId, type: 'ai',
-        x: ix, y: iy + 290,
+        x: curX + NODE_W + PAIR_GAP, y: curY,
         content: '', operation: op, instruction: instr, output: '', running: false, history: [],
       });
       state.edges.push({ id: uid('e'), from: inId, to: aiId });
+
+      if (pairH > maxRowH) maxRowH = pairH;
+      curX += PAIR_W + COL_GAP;
     });
+
     closeImportDoc();
     saveState();
     renderAll();
-    if (state.nodes.length > 4) fitView();
+    if (state.nodes.length > 4) setTimeout(fitView, 200);
     toast('已生成 ' + segs.length + ' 条 输入→AI 链，点「向下游全部运行」批量处理');
   } else {
-    const rowH = 300;
+    /* 仅输入框 */
+    const NODE_W = 280;
+    const COL_GAP = 40;
+    const ROW_GAP = 50;
+    const cols = Math.max(1, Math.floor((canvas.clientWidth || 1200) / (NODE_W + COL_GAP)));
+    let curX = 60, curY = 80, maxRowH = 0;
+
     segs.forEach((s, k) => {
-      const col = k % cols, row = Math.floor(k / cols);
-      const id = uid('input');
+      const h = estHeight(s);
+      if (k > 0 && k % cols === 0) {
+        curX = 60;
+        curY += maxRowH + ROW_GAP;
+        maxRowH = 0;
+      }
       state.nodes.push({
-        id, type: 'input',
-        x: startX + col * colW,
-        y: startY + row * rowH,
+        id: uid('input'), type: 'input',
+        x: curX, y: curY,
         content: s,
         operation: 'polish', instruction: '', output: '', running: false, history: [],
       });
+      if (h > maxRowH) maxRowH = h;
+      curX += NODE_W + COL_GAP;
     });
+
     closeImportDoc();
     saveState();
     renderAll();
-    if (state.nodes.length > 4) fitView();
+    if (state.nodes.length > 4) setTimeout(fitView, 200);
     toast('已生成 ' + segs.length + ' 个输入框');
   }
 }
