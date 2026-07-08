@@ -670,6 +670,60 @@ function copyText(txt) {
   navigator.clipboard.writeText(txt).then(() => toast('已复制'), () => toast('复制失败'));
 }
 
+/* ---------- 导入文档 → 多个输入框 ---------- */
+function splitDoc(text, mode, size) {
+  const t = (text || '').replace(/\r/g, '');
+  if (mode === 'whole') {
+    const s = t.trim();
+    return s ? [s] : [];
+  }
+  if (mode === 'size') {
+    const n = Math.max(20, parseInt(size, 10) || 200);
+    const segs = [];
+    let i = 0;
+    while (i < t.length) {
+      let end = Math.min(i + n, t.length);
+      if (end < t.length) {
+        const seg = t.slice(end - 40, end);
+        const m = seg.match(/[。.!?！？\n]/);
+        if (m && m.index !== undefined) end = end - 40 + m.index + 1;
+      }
+      const piece = t.slice(i, end).trim();
+      if (piece) segs.push(piece);
+      i = end;
+    }
+    return segs;
+  }
+  // 按段落：以一个或多个换行分隔
+  return t.split(/\n+/).map(s => s.trim()).filter(s => s.length > 0);
+}
+
+function importDocToNodes() {
+  const text = $('#doc-text').value;
+  const mode = $('#doc-mode').value;
+  const size = $('#doc-size').value;
+  const segs = splitDoc(text, mode, size);
+  if (segs.length === 0) { toast('没有可拆分的内容'); return; }
+  const startX = 60, startY = 80, colW = 290, rowH = 300, cols = 3;
+  segs.forEach((s, k) => {
+    const col = k % cols, row = Math.floor(k / cols);
+    const id = uid('input');
+    state.nodes.push({
+      id, type: 'input',
+      x: startX + col * colW,
+      y: startY + row * rowH,
+      content: s,
+      operation: 'polish', instruction: '', output: '', running: false, history: [],
+    });
+  });
+  closeImportDoc();
+  saveState();
+  renderAll();
+  toast('已生成 ' + segs.length + ' 个输入框');
+}
+function openImportDoc() { $('#import-doc-modal').classList.remove('hidden'); }
+function closeImportDoc() { $('#import-doc-modal').classList.add('hidden'); }
+
 /* ---------- 轻提示 ---------- */
 let toastTimer = null;
 function toast(msg) {
@@ -719,6 +773,27 @@ $('#set-save').addEventListener('click', () => {
 });
 $('#settings-modal').addEventListener('click', (e) => {
   if (e.target === $('#settings-modal')) closeSettings();
+});
+
+/* 导入文档 */
+$('#btn-import-doc').addEventListener('click', openImportDoc);
+$('#doc-cancel').addEventListener('click', closeImportDoc);
+$('#doc-ok').addEventListener('click', importDocToNodes);
+$('#import-doc-modal').addEventListener('click', (e) => {
+  if (e.target === $('#import-doc-modal')) closeImportDoc();
+});
+$('#doc-mode').addEventListener('change', (e) => {
+  $('#doc-size').disabled = (e.target.value !== 'size');
+});
+$('#doc-pick').addEventListener('click', () => $('#doc-file').click());
+$('#doc-file').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (f) {
+    const r = new FileReader();
+    r.onload = () => { $('#doc-text').value = r.result; toast('已读取文件'); };
+    r.readAsText(f);
+  }
+  e.target.value = '';
 });
 
 /* ---------- 启动 ---------- */
