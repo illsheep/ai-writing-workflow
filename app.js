@@ -950,13 +950,70 @@ canvas.addEventListener('mousedown', (e) => {
   document.addEventListener('mousemove', move);
   document.addEventListener('mouseup', up);
 });
+/* ---------- 文档解析库按需加载（Word/PDF 走浏览器端 CDN，无后端） ---------- */
+const DOC_LIBS = {
+  pdfjs: {
+    url: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3/build/pdf.min.js',
+    ready: () => !!window.pdfjsLib,
+    after: () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3/build/pdf.worker.min.js'; }
+  },
+  mammoth: {
+    url: 'https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js',
+    ready: () => !!window.mammoth
+  }
+};
+function loadScriptOnce(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('解析库加载失败，请检查网络'));
+    document.head.appendChild(s);
+  });
+}
+async function ensureDocLib(name) {
+  const L = DOC_LIBS[name];
+  if (L.ready()) return;
+  await loadScriptOnce(L.url);
+  if (L.after) L.after();
+  if (!L.ready()) throw new Error('解析库未能初始化：' + name);
+}
+
 $('#doc-pick').addEventListener('click', () => $('#doc-file').click());
-$('#doc-file').addEventListener('change', (e) => {
+$('#doc-file').addEventListener('change', async (e) => {
   const f = e.target.files[0];
-  if (f) {
-    const r = new FileReader();
-    r.onload = () => { $('#doc-text').value = r.result; toast('已读取文件'); };
-    r.readAsText(f);
+  if (!f) return;
+  const lower = f.name.toLowerCase();
+  try {
+    if (lower.endsWith('.pdf')) {
+      toast('正在解析 PDF…');
+      await ensureDocLib('pdfjs');
+      const buf = await f.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      let out = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        out += tc.items.map(it => it.str || '').join(' ') + '\n\n';
+      }
+      $('#doc-text').value = out.trim();
+      toast('已读取 PDF：' + pdf.numPages + ' 页');
+    } else if (lower.endsWith('.docx')) {
+      toast('正在解析 Word…');
+      await ensureDocLib('mammoth');
+      const buf = await f.arrayBuffer();
+      const res = await window.mammoth.extractRawText({ arrayBuffer: buf });
+      $('#doc-text').value = (res.value || '').trim();
+      toast('已读取 Word 文档');
+    } else if (lower.endsWith('.doc')) {
+      toast('旧版 .doc 暂不支持，请另存为 .docx 后重试');
+    } else {
+      const r = new FileReader();
+      r.onload = () => { $('#doc-text').value = r.result; toast('已读取文件'); };
+      r.readAsText(f);
+    }
+  } catch (err) {
+    toast('解析失败：' + (err && err.message ? err.message : err));
   }
   e.target.value = '';
 });

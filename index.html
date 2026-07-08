@@ -35,7 +35,7 @@
   <div id="import-doc-modal" class="modal hidden">
     <div class="modal-box">
       <h3>导入文档</h3>
-      <p class="tip">粘贴或选择文本文件，将按段落拆分为多段。可选「逐段批处理」：每段自动配一个 AI 框并连好线，一键跑完全篇。</p>
+      <p class="tip">粘贴或选择文本 / Word(.docx) / PDF 文件，将按段落拆分为多段。Word 与 PDF 在浏览器端解析（首次需联网加载解析库）。可选「逐段批处理」：每段自动配一个 AI 框并连好线，一键跑完全篇。</p>
       <label>文本
         <textarea id="doc-text" class="doc-text" placeholder="在此粘贴你的文章 / 文档内容…"></textarea>
       </label>
@@ -57,7 +57,7 @@
           <input id="doc-size" type="number" value="200" min="20" step="10" disabled />
         </label>
         <button id="doc-pick" class="tb">选择文件</button>
-        <input type="file" id="doc-file" accept=".txt,.md,.text,text/plain" hidden />
+        <input type="file" id="doc-file" accept=".txt,.md,.text,.docx,.pdf,text/plain" hidden />
       </div>
       <label class="doc-clear"><input type="checkbox" id="doc-clear" /> 导入前清空画布（避免与现有内容混在一起）</label>
       <div id="doc-chain-opts" class="doc-chain-opts hidden">
