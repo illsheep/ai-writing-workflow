@@ -8,6 +8,7 @@ const OPERATIONS = {
   summary: { label: '概括', prompt: '请用一两段话概括下面文本的主旨与要点：' },
   review:  { label: '点评', prompt: '请从内容、结构、表达等方面点评下面文本，指出优点与可改进之处：' },
   cont:    { label: '续写', prompt: '请接着下面文本继续写，保持文风、人物与主题一致，自然衔接，不要重复已有内容：' },
+  translate:{ label: '翻译', prompt: '请将下面文本翻译成中文（若原文已是中文则译为目标语言英文）。保留专业术语、专有名词与公式编号，译文通顺、符合学术表达。如需指定其他目标语言，请在附加指令中写明（如「译为英文」「译为日文」）：' },
 };
 
 const STORE_KEY = 'aiwf_state_v1';
@@ -971,6 +972,37 @@ function loadScriptOnce(url) {
     document.head.appendChild(s);
   });
 }
+/* 按文字坐标重建行结构：PDF 文本项是带 transform 的散点，
+   平铺拼接会打乱行/列/公式顺序。这里按基线 y 聚类成行、行内按 x 排序，恢复段落与换行。
+   注意：图片型公式在 PDF 中通常无文本层，无法被提取（这是 PDF 文本层的固有局限）。 */
+function pdfPageToText(tc) {
+  const items = (tc.items || []).filter(it => it.str && it.str.trim().length);
+  if (!items.length) return '';
+  const rows = items.map(it => {
+    const m = it.transform || [1, 0, 0, 1, 0, 0];
+    return { x: m[4], y: m[5], str: it.str, h: (it.height || Math.abs(m[3]) || 10) };
+  });
+  rows.sort((a, b) => (b.y - a.y) || (a.x - b.x));   // PDF 原点在左下，y 越大越靠上
+  const lines = [];
+  let cur = [rows[0]];
+  let curY = rows[0].y;
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (Math.abs(r.y - curY) <= Math.max(2, cur[0].h * 0.6)) {
+      cur.push(r);
+    } else {
+      lines.push(cur);
+      cur = [r];
+      curY = r.y;
+    }
+  }
+  lines.push(cur);
+  return lines.map(line => {
+    line.sort((a, b) => a.x - b.x);
+    return line.map(it => it.str).join(' ');
+  }).join('\n');
+}
+
 async function ensureDocLib(name) {
   const L = DOC_LIBS[name];
   if (L.ready()) return;
@@ -994,10 +1026,10 @@ $('#doc-file').addEventListener('change', async (e) => {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const tc = await page.getTextContent();
-        out += tc.items.map(it => it.str || '').join(' ') + '\n\n';
+        out += pdfPageToText(tc) + '\n\n';
       }
       $('#doc-text').value = out.trim();
-      toast('已读取 PDF：' + pdf.numPages + ' 页');
+      toast('已读取 PDF：' + pdf.numPages + ' 页（公式类内容可能缺失，见提示）');
     } else if (lower.endsWith('.docx')) {
       toast('正在解析 Word…');
       await ensureDocLib('mammoth');
