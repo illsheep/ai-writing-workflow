@@ -108,7 +108,7 @@ function renderNode(id) {
   if (node.type === 'input') {
     const ta = $('.content', el);
     if (active !== ta) { ta.value = node.content || ''; autoGrow(ta); }
-  } else {
+  } else if (node.type === 'ai') {
     const sel = $('.op-select', el);
     if (active !== sel) sel.value = node.operation;
     const inst = $('.instruction', el);
@@ -121,6 +121,24 @@ function renderNode(id) {
     const histBtn = $('.hist-btn', el);
     if (histBtn) histBtn.textContent = '历史' + (node.history && node.history.length ? ' (' + node.history.length + ')' : '');
     updateUpPreview(el, node);
+  } else {
+    // 控制流节点字段同步
+    const out = $('.output', el);
+    if (active !== out) { out.value = node.output || ''; autoGrow(out); }
+    const btn = $('.run-btn', el);
+    if (node.running) { btn.textContent = '运行中…'; btn.classList.add('running'); btn.disabled = true; }
+    else { btn.textContent = '运行'; btn.classList.remove('running'); btn.disabled = false; }
+    if (node.type === 'branch') {
+      const badge = $('.branch-badge', el);
+      if (badge) { badge.textContent = node.branchResult ? ('判断：' + node.branchResult) : ''; badge.className = 'branch-badge ' + (node.branchResult || ''); }
+    }
+    if (node.type === 'merge') {
+      const sep = $('.sep-input', el); if (active !== sep) sep.value = (node.separator === '\n\n') ? '' : (node.separator || '');
+    }
+    if (node.type === 'loop') {
+      const cnt = $('.loop-count', el); if (active !== cnt) cnt.value = node.count || 2;
+    }
+    updateUpPreview(el, node);
   }
 }
 
@@ -129,7 +147,7 @@ function buildNodeInner(el, node) {
   header.className = 'node-header';
   const title = document.createElement('span');
   title.className = 'node-title';
-  title.textContent = node.type === 'input' ? '输入框' : 'AI 操作框';
+  title.textContent = node.type === 'input' ? '输入框' : node.type === 'ai' ? 'AI 操作框' : node.type === 'merge' ? '聚合' : node.type === 'branch' ? '判断' : '循环';
   header.appendChild(title);
 
   const hActions = document.createElement('div');
@@ -164,7 +182,7 @@ function buildNodeInner(el, node) {
     ta.placeholder = '在这里输入/粘贴你的原始文本…';
     ta.addEventListener('input', () => { node.content = ta.value; autoGrow(ta); onContentChanged(node.id); });
     body.appendChild(ta);
-  } else {
+  } else if (node.type === 'ai') {
     const row = document.createElement('div');
     row.className = 'row';
     const lbl = document.createElement('label');
@@ -218,21 +236,76 @@ function buildNodeInner(el, node) {
     const histPanel = document.createElement('div');
     histPanel.className = 'history-panel hidden';
     body.appendChild(histPanel);
+  } else {
+    // 控制流节点：聚合 / 判断 / 循环
+    if (node.type === 'merge') {
+      const row = document.createElement('div'); row.className = 'row';
+      const lbl = document.createElement('label'); lbl.className = 'lbl'; lbl.textContent = '分隔符';
+      const sep = document.createElement('input'); sep.type = 'text'; sep.className = 'sep-input';
+      sep.placeholder = '默认两个换行'; sep.value = (node.separator === '\n\n') ? '' : (node.separator || '');
+      sep.addEventListener('input', () => { node.separator = sep.value === '' ? '\n\n' : sep.value; saveState(); });
+      row.appendChild(lbl); row.appendChild(sep);
+      body.appendChild(row);
+    }
+    if (node.type === 'branch') {
+      const cond = document.createElement('textarea'); cond.className = 'cond-input instruction';
+      cond.placeholder = '判断条件，如「是否满足字数要求」「是否为正式语气」…';
+      cond.value = node.condition || '';
+      cond.addEventListener('input', () => { node.condition = cond.value; saveState(); });
+      body.appendChild(cond);
+      const badge = document.createElement('div'); badge.className = 'branch-badge'; badge.textContent = '';
+      body.appendChild(badge);
+    }
+    if (node.type === 'loop') {
+      const row = document.createElement('div'); row.className = 'row';
+      const lbl = document.createElement('label'); lbl.className = 'lbl'; lbl.textContent = '循环次数';
+      const cnt = document.createElement('input'); cnt.type = 'number'; cnt.className = 'loop-count'; cnt.min = '1'; cnt.max = '20'; cnt.value = node.count || 2;
+      cnt.addEventListener('input', () => { node.count = parseInt(cnt.value, 10) || 1; saveState(); });
+      row.appendChild(lbl); row.appendChild(cnt);
+      body.appendChild(row);
+    }
+    const actions = document.createElement('div'); actions.className = 'node-actions';
+    const runBtn = document.createElement('button'); runBtn.className = 'tb primary run-btn';
+    runBtn.textContent = '运行'; runBtn.addEventListener('click', () => runNode(node.id));
+    const copyBtn = document.createElement('button'); copyBtn.className = 'tb';
+    copyBtn.textContent = '复制结果'; copyBtn.addEventListener('click', () => copyText(node.output || ''));
+    actions.appendChild(runBtn); actions.appendChild(copyBtn);
+    body.appendChild(actions);
+    const out = document.createElement('textarea'); out.className = 'output';
+    out.placeholder = node.type === 'branch' ? '原文本（判断后原样透传）…' : (node.type === 'loop' ? '循环最终输出…' : '聚合后的文本…');
+    out.addEventListener('input', () => { node.output = out.value; autoGrow(out); saveState(); });
+    body.appendChild(out);
   }
   el.appendChild(body);
 
   // 端口
-  const portOut = document.createElement('div');
-  portOut.className = 'port port-out';
-  portOut.title = '拖出连线';
-  portOut.addEventListener('mousedown', (e) => startConnect(e, node.id));
-  el.appendChild(portOut);
-
-  if (node.type === 'ai') {
+  if (node.type === 'input') {
+    const portOut = document.createElement('div');
+    portOut.className = 'port port-out';
+    portOut.title = '拖出连线';
+    portOut.addEventListener('mousedown', (e) => startConnect(e, node.id, 'out'));
+    el.appendChild(portOut);
+  } else {
     const portIn = document.createElement('div');
     portIn.className = 'port port-in';
     portIn.title = '连线终点';
     el.appendChild(portIn);
+    if (node.type === 'branch') {
+      const pYes = document.createElement('div'); pYes.className = 'port port-out yes';
+      pYes.title = '条件成立时拖出'; pYes.addEventListener('mousedown', (e) => startConnect(e, node.id, '是'));
+      el.appendChild(pYes);
+      const pNo = document.createElement('div'); pNo.className = 'port port-out no';
+      pNo.title = '条件不成立时拖出'; pNo.addEventListener('mousedown', (e) => startConnect(e, node.id, '否'));
+      el.appendChild(pNo);
+      const ly = document.createElement('span'); ly.className = 'port-label yes'; ly.textContent = '成立'; el.appendChild(ly);
+      const ln = document.createElement('span'); ln.className = 'port-label no'; ln.textContent = '不成立'; el.appendChild(ln);
+    } else {
+      const portOut = document.createElement('div');
+      portOut.className = 'port port-out';
+      portOut.title = '拖出连线';
+      portOut.addEventListener('mousedown', (e) => startConnect(e, node.id, 'out'));
+      el.appendChild(portOut);
+    }
   }
 
   // 拖拽移动
@@ -241,6 +314,7 @@ function buildNodeInner(el, node) {
 
 function updateUpPreview(el, node) {
   const prev = $('.up-preview', el);
+  if (!prev) return;                 // 仅 AI 框有上游预览区
   const inc = incomingOf(node.id);
   if (inc.length === 0) {
     prev.textContent = '（暂无上游输入）';
@@ -275,10 +349,16 @@ function onContentChanged(id) {
 /* 端口中心（内容坐标，不依赖 DOM 缩放后位置）
    与 styles.css 中 .node 宽(280px) 及 .port top(16px)+半径(7px)=23 保持一致 */
 const NODE_W = 280, PORT_DY = 23;
-function portCenter(nodeId, which) {
+function portCenter(nodeId, which, port) {
   const node = getNode(nodeId);
   if (!node) return { x: 0, y: 0 };
-  if (which === 'out') return { x: node.x + NODE_W - 1, y: node.y + PORT_DY };
+  if (which === 'out') {
+    if (node.type === 'branch') {
+      const off = (port === '否') ? 73 : 45;
+      return { x: node.x + NODE_W - 1, y: node.y + off };
+    }
+    return { x: node.x + NODE_W - 1, y: node.y + PORT_DY };
+  }
   return { x: node.x - 1, y: node.y + PORT_DY };
 }
 function fitView() {
@@ -323,7 +403,7 @@ function drawEdges() {
   for (const e of state.edges) {
     const from = getNode(e.from), to = getNode(e.to);
     if (!from || !to) continue;
-    const s = portCenter(e.from, 'out');
+    const s = portCenter(e.from, 'out', e.fromPort);
     const t = portCenter(e.to, 'in');
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.setAttribute('class', 'edge');
@@ -343,10 +423,11 @@ function drawEdges() {
 
 /* ---------- 连线交互 ---------- */
 let tempConnect = null;
-function startConnect(e, fromId) {
+function startConnect(e, fromId, port) {
   e.stopPropagation();
   e.preventDefault();
-  tempConnect = { from: fromId, start: portCenter(fromId, 'out'), cur: null };
+  port = port || 'out';
+  tempConnect = { from: fromId, fromPort: port, start: portCenter(fromId, 'out', port), cur: null };
   document.addEventListener('mousemove', onConnectMove);
   document.addEventListener('mouseup', onConnectUp);
 }
@@ -376,10 +457,10 @@ function onConnectUp(e) {
 function tryConnect(fromId, toId) {
   if (fromId === toId) { toast('不能连到自己'); return; }
   const to = getNode(toId);
-  if (!to || to.type !== 'ai') { toast('输入框不能接收连线'); return; }
-  if (state.edges.some(e => e.from === fromId && e.to === toId)) { toast('连线已存在'); return; }
+  if (!to || to.type === 'input') { toast('输入框不能接收连线'); return; }
+  if (state.edges.some(e => e.from === fromId && e.to === toId && (e.fromPort || 'out') === (tempConnect.fromPort || 'out'))) { toast('连线已存在'); return; }
   if (createsCycle(fromId, toId)) { toast('不能连成环'); return; }
-  state.edges.push({ id: uid('e'), from: fromId, to: toId });
+  state.edges.push({ id: uid('e'), from: fromId, to: toId, fromPort: tempConnect.fromPort || 'out' });
   saveState();
   renderAll();
 }
@@ -406,6 +487,9 @@ function addNode(type) {
     y: 120 + (state.nodes.length % 5) * 40,
     content: '', operation: 'polish', instruction: '', output: '', running: false, history: [],
   };
+  if (type === 'merge') node.separator = '\n\n';
+  if (type === 'branch') { node.condition = ''; node.branchResult = ''; }
+  if (type === 'loop') node.count = 2;
   state.nodes.push(node);
   saveState();
   renderAll();
@@ -447,6 +531,10 @@ function cloneNodeFields(src, newId, dx, dy) {
     operation: src.operation || 'polish',
     instruction: src.instruction || '',
     output: src.output || '',
+    separator: src.separator || '\n\n',
+    condition: src.condition || '',
+    branchResult: '',
+    count: src.count || 2,
     running: false,
     history: Array.isArray(src.history) ? src.history.map(h => ({ ...h })) : [],
   };
@@ -468,7 +556,7 @@ function copyNode(id, subtree) {
     }
     for (const e of state.edges) {
       if (map[e.from] && map[e.to]) {
-        state.edges.push({ id: uid('e'), from: map[e.from], to: map[e.to] });
+        state.edges.push({ id: uid('e'), from: map[e.from], to: map[e.to], fromPort: e.fromPort || 'out' });
       }
     }
     state.nodes.push(...newNodes);
@@ -512,46 +600,139 @@ function startDrag(e, id) {
 /* ---------- AI 调用（流式） ---------- */
 const runningSet = new Set();
 
-async function runNode(id) {
-  const node = getNode(id);
-  if (!node || node.type !== 'ai') return;
-  if (runningSet.has(id)) return;
-  const inc = incomingOf(id);
-  if (inc.length === 0) { toast('该 AI 框没有上游输入'); return; }
+/* ---------- 控制流辅助 ---------- */
+function gatherInput(node) {
+  const inc = incomingOf(node.id).filter(isEdgeActive);
   const parts = [];
   for (const e of inc) {
     const src = getNode(e.from);
     const txt = src.type === 'input' ? (src.content || '') : (src.output || '');
     if (txt.trim()) parts.push(txt.trim());
   }
-  if (parts.length === 0) { toast('上游没有内容，先填写上游'); return; }
-  const srcText = parts.join('\n\n');
+  return parts.join('\n\n');
+}
+function isEdgeActive(e) {
+  const from = getNode(e.from);
+  if (from && from.type === 'branch') return (e.fromPort || '是') === (from.branchResult || '否');
+  return true;
+}
+async function completeAI(userMsg) {
+  const settings = loadSettings();
+  if (!settings.apiKey) { openSettings(); throw new Error('请先配置 API Key'); }
+  const url = settings.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + settings.apiKey },
+    body: JSON.stringify({ model: settings.model, messages: [{ role: 'user', content: userMsg }], stream: false }),
+  });
+  if (!res.ok) { const txt = await res.text().catch(() => ''); throw new Error('HTTP ' + res.status + ' ' + txt.slice(0, 200)); }
+  const j = await res.json();
+  return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+}
+function topoSort(ids) {
+  const indeg = {}, adj = {};
+  ids.forEach(id => { indeg[id] = 0; adj[id] = []; });
+  for (const e of state.edges) {
+    if (ids.includes(e.from) && ids.includes(e.to)) { adj[e.from].push(e.to); indeg[e.to]++; }
+  }
+  const q = ids.filter(id => indeg[id] === 0), order = [];
+  while (q.length) {
+    const cur = q.shift(); order.push(cur);
+    for (const nx of adj[cur]) if (--indeg[nx] === 0) q.push(nx);
+  }
+  return order;
+}
+async function runSubgraph(rootId, seedText) {
+  const root = getNode(rootId);
+  root.output = seedText;
+  const reachable = collectSubtree(rootId);
+  reachable.delete(rootId);
+  const order = topoSort([...reachable]);
+  for (const nid of order) {
+    const node = getNode(nid);
+    const inc = incomingOf(nid);
+    if (inc.length > 0 && inc.every(e => !isEdgeActive(e))) { node.output = ''; continue; }
+    await runNode(nid);
+  }
+  let finals = [];
+  for (const nid of reachable) {
+    const outs = outgoingOf(nid).filter(e => reachable.has(e.to));
+    if (outs.length === 0) finals.push((getNode(nid).output || ''));
+  }
+  return finals.join('\n\n');
+}
 
+async function runNode(id) {
+  const node = getNode(id);
+  if (!node || node.type === 'input') return;
+  if (runningSet.has(id)) return;
+
+  if (node.type === 'merge') {
+    const text = gatherInput(node);
+    node.output = text;
+    renderNode(id); saveState();
+    toast('已聚合 ' + incomingOf(node.id).length + ' 个上游');
+    return;
+  }
+
+  if (node.type === 'branch') {
+    const text = gatherInput(node);
+    if (!text.trim()) { toast('判断节点没有上游输入'); return; }
+    const cond = node.condition && node.condition.trim() ? node.condition.trim() : '文本是否合格/完整';
+    node.running = true; renderNode(id); runningSet.add(id);
+    try {
+      const ans = await completeAI('请判断下面文本是否满足要求：' + cond + '。只回答「是」或「否」两个字，不要任何解释。\n\n' + text);
+      node.branchResult = /否/.test(ans) ? '否' : '是';
+      node.output = text;
+      renderNode(id);
+      toast('判断结果：' + node.branchResult);
+    } catch (err) {
+      node.output = '【调用出错】' + err.message; toast('调用失败：' + err.message);
+    } finally {
+      node.running = false; runningSet.delete(id); renderNode(id); saveState();
+    }
+    return;
+  }
+
+  if (node.type === 'loop') {
+    const text0 = gatherInput(node);
+    if (!text0.trim()) { toast('循环节点没有上游输入'); return; }
+    const n = Math.max(1, Math.min(20, parseInt(node.count, 10) || 1));
+    node.running = true; node.output = text0; renderNode(id); runningSet.add(id);
+    try {
+      let text = text0;
+      for (let i = 0; i < n; i++) {
+        text = await runSubgraph(id, text);
+        node.output = text;
+        renderNode(id);
+      }
+      toast('循环完成（' + n + ' 轮）');
+    } catch (err) {
+      node.output = '【调用出错】' + err.message; toast('调用失败：' + err.message);
+    } finally {
+      node.running = false; runningSet.delete(id); renderNode(id); saveState();
+    }
+    return;
+  }
+
+  // ai 节点
+  const inc = incomingOf(id).filter(isEdgeActive);
+  if (inc.length === 0) { toast('该 AI 框没有上游输入'); return; }
+  const srcText = gatherInput(node);
+  if (!srcText.trim()) { toast('上游没有内容，先填写上游'); return; }
   const settings = loadSettings();
   if (!settings.apiKey) { openSettings(); toast('请先配置 API Key'); return; }
-
   const tpl = OPERATIONS[node.operation].prompt;
   let userMsg = tpl;
   if (node.instruction && node.instruction.trim()) userMsg += '\n附加要求：' + node.instruction.trim();
   userMsg += '\n\n' + srcText;
-
-  node.running = true; node.output = '';
-  renderNode(id);
-  runningSet.add(id);
-
+  node.running = true; node.output = ''; renderNode(id); runningSet.add(id);
   try {
     const url = settings.baseUrl.replace(/\/+$/, '') + '/chat/completions';
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + settings.apiKey,
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        messages: [{ role: 'user', content: userMsg }],
-        stream: true,
-      }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + settings.apiKey },
+      body: JSON.stringify({ model: settings.model, messages: [{ role: 'user', content: userMsg }], stream: true }),
     });
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
@@ -566,8 +747,7 @@ async function runNode(id) {
       buf += decoder.decode(value, { stream: true });
       let idx;
       while ((idx = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, idx).trim();
-        buf = buf.slice(idx + 1);
+        const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
         if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trim();
         if (data === '[DONE]') continue;
@@ -578,7 +758,6 @@ async function runNode(id) {
             node.output += delta;
             const outEl = $('.output', nodeEls.get(id));
             if (document.activeElement !== outEl) { outEl.value = node.output; autoGrow(outEl); }
-            // 实时更新下游预览
             for (const e of outgoingOf(id)) {
               const el = nodeEls.get(e.to);
               if (el) updateUpPreview(el, getNode(e.to));
@@ -590,14 +769,9 @@ async function runNode(id) {
     recordHistory(node, node.operation, node.instruction, srcText, node.output);
   } catch (err) {
     node.output = '【调用出错】' + err.message;
-    const outEl = $('.output', nodeEls.get(id));
-    outEl.value = node.output;
-    toast('调用失败：' + err.message);
+    const outEl = $('.output', nodeEls.get(id)); outEl.value = node.output; toast('调用失败：' + err.message);
   } finally {
-    node.running = false;
-    runningSet.delete(id);
-    renderNode(id);
-    saveState();
+    node.running = false; runningSet.delete(id); renderNode(id); saveState();
   }
 }
 
@@ -675,7 +849,10 @@ function restoreHistory(node, h) {
 
 async function runDownstream(id) {
   await runNode(id);
+  const node = getNode(id);
+  if (node.type === 'loop') return;          // 循环已在内部把下游跑完
   for (const e of outgoingOf(id)) {
+    if (!isEdgeActive(e)) continue;
     await runDownstream(e.to);
   }
 }
@@ -868,6 +1045,9 @@ function closeSettings() { $('#settings-modal').classList.add('hidden'); }
 /* ---------- 事件绑定 ---------- */
 $('#btn-add-input').addEventListener('click', () => addNode('input'));
 $('#btn-add-ai').addEventListener('click', () => addNode('ai'));
+$('#btn-add-merge').addEventListener('click', () => addNode('merge'));
+$('#btn-add-branch').addEventListener('click', () => addNode('branch'));
+$('#btn-add-loop').addEventListener('click', () => addNode('loop'));
 $('#btn-run-all').addEventListener('click', runAll);
 $('#btn-export').addEventListener('click', exportJson);
 $('#btn-import').addEventListener('click', () => $('#file-import').click());

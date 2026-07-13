@@ -11,6 +11,9 @@
     <span class="brand">🧭 AI 写作工作流</span>
     <button id="btn-add-input" class="tb">+ 输入框</button>
     <button id="btn-add-ai" class="tb">+ AI 框</button>
+    <button id="btn-add-merge" class="tb">+ 聚合</button>
+    <button id="btn-add-branch" class="tb">+ 判断</button>
+    <button id="btn-add-loop" class="tb">+ 循环</button>
     <button id="btn-run-all" class="tb primary">向下游全部运行</button>
     <span class="sep"></span>
     <button id="btn-export" class="tb">导出 JSON</button>
@@ -28,7 +31,7 @@
       <svg id="edge-layer"></svg>
       <div id="nodes-layer"></div>
     </div>
-    <div id="hint" class="hint">从节点右侧 <b>●</b> 端口拖到另一节点左侧 <b>●</b> 端口即可连线。输入框不能接收连线；AI 框可接收多个上游（按顺序拼接），也可向多个下游输出；连线不能成环。<b>滚轮</b>可上下/左右平移画布，或在空白处按住拖动；节点多时点「适配视图」一键缩放看全。</div>
+    <div id="hint" class="hint">从节点右侧 <b>●</b> 端口拖到另一节点左侧 <b>●</b> 端口即可连线。输入框不能接收连线；AI 框、聚合、判断、循环都可接收上游（按顺序拼接）、也可向多个下游输出；连线不能成环。<b>新增控制节点：</b>聚合＝把多个上游合并成一段；判断＝按条件把文本分到「成立 / 不成立」两路（绿/红端口）；循环＝让下游重复跑 N 轮。<b>滚轮</b>可上下/左右平移画布，或在空白处按住拖动；节点多时点「适配视图」一键缩放看全。</div>
   </main>
 
   <!-- 导入文档弹窗 -->

@@ -245,3 +245,20 @@ label.lbl { font-size: 12px; color: #6b7480; }
 .tb.tiny { padding: 3px 8px; font-size: 12px; flex: 1; }
 .tb.danger { color: #e0533b; border-color: #f0c4ba; }
 .tb.danger:hover { background: #fdece9; }
+
+/* 控制流节点 */
+.node.merge { border-color: #c9a227; }
+.node.merge .node-header { background: #fdf8e9; }
+.node.branch { border-color: #9b6bd6; }
+.node.branch .node-header { background: #f6f0fc; }
+.node.loop { border-color: #0f6e56; }
+.node.loop .node-header { background: #e6f5ef; }
+.sep-input, .cond-input, .loop-count { width: 100%; }
+.branch-badge { font-size: 12px; padding: 3px 8px; border-radius: 6px; align-self: flex-start; }
+.branch-badge.yes { background: #e1f5ee; color: #0f6e56; }
+.branch-badge.no  { background: #fcebeb; color: #a32d2d; }
+.port-out.yes { top: 38px; transform: none; border-color: #1d9e75; background: #e1f5ee; }
+.port-out.no  { top: 66px; transform: none; border-color: #e24b4a; background: #fcebeb; }
+.port-label { position: absolute; right: 16px; font-size: 10px; pointer-events: none; }
+.port-label.yes { top: 34px; color: #1d9e75; }
+.port-label.no  { top: 62px; color: #e24b4a; }
