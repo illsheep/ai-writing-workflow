@@ -393,6 +393,45 @@ function estNodeHeight(txt) {
 }
 function resetView() { view.scale = 1; view.tx = 0; view.ty = 0; applyView(); }
 
+/** 估算单个节点渲染高度（优先用真实 DOM，否则按内容估算） */
+function nodeHeight(n) {
+  const el = nodeEls.get(n.id);
+  if (el && el.offsetHeight) return el.offsetHeight + 12;
+  let base = estNodeHeight(n.content || n.output || '');
+  if (n.type === 'ai') base += 150;
+  else if (n.type !== 'input') base += 60;   // 控制流节点
+  return base;
+}
+
+/* 自动整理布局：按拓扑层（最长路径）做分层列布局，节点在列内纵向错开避免重叠 */
+function autoLayout() {
+  const ns = state.nodes;
+  if (ns.length === 0) { toast('画布为空'); return; }
+  const layer = {};
+  ns.forEach(n => { layer[n.id] = 0; });
+  const order = topoSort(ns.map(n => n.id));
+  for (const id of order) {
+    const parents = incomingOf(id);
+    layer[id] = parents.length === 0 ? 0 : Math.max(...parents.map(e => layer[e.from] + 1));
+  }
+  const byLayer = {};
+  for (const n of ns) (byLayer[layer[n.id]] = byLayer[layer[n.id]] || []).push(n);
+  const COL_W = 360, ROW_GAP = 28, startX = 60, startY = 60;
+  for (const L in byLayer) {
+    const col = byLayer[L].sort((a, b) => a.y - b.y);
+    let y = startY;
+    for (const n of col) {
+      n.x = startX + Number(L) * COL_W;
+      n.y = y;
+      y += nodeHeight(n) + ROW_GAP;
+    }
+  }
+  saveState();
+  renderAll();
+  setTimeout(fitView, 60);
+  toast('已整理布局（共 ' + ns.length + ' 个节点）');
+}
+
 function edgePath(s, t) {
   const dx = Math.max(40, Math.abs(t.x - s.x) / 2);
   return `M ${s.x} ${s.y} C ${s.x + dx} ${s.y}, ${t.x - dx} ${t.y}, ${t.x} ${t.y}`;
@@ -581,8 +620,11 @@ function startDrag(e, id) {
   const startX = e.clientX, startY = e.clientY;
   const origX = node.x, origY = node.y;
   function move(ev) {
-    node.x = Math.max(0, origX + (ev.clientX - startX) / view.scale);
-    node.y = Math.max(0, origY + (ev.clientY - startY) / view.scale);
+    const GRID = 8;   // 拖拽时按网格吸附，保持节点始终对齐
+    const nx = Math.max(0, origX + (ev.clientX - startX) / view.scale);
+    const ny = Math.max(0, origY + (ev.clientY - startY) / view.scale);
+    node.x = Math.round(nx / GRID) * GRID;
+    node.y = Math.round(ny / GRID) * GRID;
     const el = nodeEls.get(id);
     el.style.left = node.x + 'px';
     el.style.top = node.y + 'px';
@@ -1095,6 +1137,29 @@ function fillDocOp() {
 fillDocOp();
 $('#btn-fit').addEventListener('click', fitView);
 $('#btn-1x').addEventListener('click', resetView);
+
+/* 折叠工具栏（仅保留品牌与切换按钮，省出空间） */
+$('#tb-toggle').addEventListener('click', () => {
+  $('#toolbar').classList.toggle('collapsed');
+});
+
+/* 清空画布 */
+$('#btn-clear').addEventListener('click', () => {
+  if (!confirm('确定清空整个画布？所有节点与连线都会被删除（不可撤销）。')) return;
+  state.nodes = [];
+  state.edges = [];
+  runningSet.clear();
+  saveState();
+  renderAll();
+  toast('画布已清空');
+});
+
+/* 整理布局（自动分层对齐） */
+$('#btn-layout').addEventListener('click', autoLayout);
+
+/* 提示框：收起 / 重新显示 */
+$('#hint-close').addEventListener('click', () => $('#hint').classList.add('hidden'));
+$('#btn-help').addEventListener('click', () => $('#hint').classList.toggle('hidden'));
 
 /* 滚轮平移画布（替代滚动条，支持上下左右） */
 canvas.addEventListener('wheel', (e) => {
